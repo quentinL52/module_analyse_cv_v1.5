@@ -1,0 +1,88 @@
+
+audit_projets:
+  description: >
+    Mission : Évaluation des Projets.
+    INTERDIT : Ne jamais inventer, supposer ou fabriquer des données absentes du texte fourni. Si la section projet est vide, retourne un tableau vide. Ne crée jamais de projet fictif.
+    Rédige ton analyse en t'adressant DIRECTEMENT au candidat (tutoiement).
+    
+    Ton analyse doit être factuelle et équilibrée. Base chaque score uniquement sur les preuves présentes dans le texte.
+    Évalue la pertinence de la solution technique par rapport au problème résolu, indépendamment du type d'outils choisis.
+    
+    Nouveau système CTO de Sub-Scoring avec 3 Axes :
+    Axe 1: Impact & Compréhension Métier (clarté problème, impact, etc.)
+    Axe 2: Complexité & Stack Technique (densité ingénierie, maturité, etc.)
+    Axe 3: Alignement Stratégique & Transférabilité (valeur marchande, transfert)
+    
+    Pour CHAQUE projet, tu dois générer :
+    - `avis_cto` : critique globale CTO et cohérence poste, tutoiement
+    - `axe_impact_metier` : avec justification et score/10
+    - `axe_complexite_tech` : avec justification et score/10
+    - `axe_alignement_strat` : avec justification et score/10
+    - `score_general_projet_pourcent` : la moyenne des 3 scores * 10
+  expected_output: >
+    JSON strictement conforme : {{
+      "projets": [
+        {{
+          "title": "<Nom exact>",
+          "avis_cto": "<Ton avis global CTO s'adressant au candidat>",
+          "axe_impact_metier": {{ "justification": "<...>", "score": <entier 0-10> }},
+          "axe_complexite_tech": {{ "justification": "<...>", "score": <entier 0-10> }},
+          "axe_alignement_strat": {{ "justification": "<...>", "score": <entier 0-10> }},
+          "score_general_projet_pourcent": <entier 0-100>
+        }}
+      ]
+    }}
+  agent: auditeur
+
+analyse_parcours:
+  description: >
+    Mission : Analyse du statut, du parcours et des compétences.
+    1. Statut : Analyse les formations et expériences pour déterminer :
+       - reconversion : Le candidat est-il en reconversion stricte ? Recherche une expérience significative (3 ans et plus) dans un domaine complètement différent, ou une telle expérience suivie d'une formation technique diplômante. (Attention: les petits jobs étudiants ne comptent pas comme une première carrière).
+       - etudiant : Est-il actuellement étudiant ? Vérifie STRICTEMENT en comparant les dates d'études/formations avec la date d'aujourd'hui. Si la date de fin d'une formation est dans le futur ou "présent"/"en cours", alors il EST étudiant. S'il n'y a pas de date de fin future, il n'est PAS étudiant. Ne fais aucune supposition sans analyser les dates.
+       - disponible : Évalue la disponibilité en comparant logiquement les dates de fin d'emploi avec la date d'aujourd'hui. Un candidat est disponible s'il n'a aucune expérience professionnelle salariée en cours. Être actuellement étudiant (formation en cours) ou avoir un engagement associatif/bénévolat en cours ne bloque PAS la disponibilité. Le modèle doit identifier si un emploi salarié est en cours (ex: "présent", "now", "aujourd'hui", "en cours", ou pas de date de fin). Si le candidat n'a pas d'emploi salarié actif, il est disponible.
+    2. Compétences : Analyse la liste globale des compétences extraites. 
+       Pour les `soft_skills`, tu dois évaluer si la compétence est "transferable" vers la tech ou non et l'ajouter à `transferables_par_skill`. Le contexte d'utilisation doit être déduit du CV.
+  expected_output: >
+    Un objet (OutputProfileur) avec le statut de reconversion, d'étudiant, la disponibilité, et les compétences séparées et analysées.
+  agent: profileur
+
+matching_offre:
+  description: >
+    Mission : Calculer le score de compatibilité.
+    Compare le profil complet (compétences, expériences, projets) avec l'offre ou le profil attendu.
+    Génère le profil_calcule_knowledge_graph (profil métier dominant), le niveau de confidence, et le score_compatibilite_sur_100.
+  expected_output: >
+    Un objet (AnalyseMatchingOffre) avec les scores et la recommandation agentique.
+  agent: ats_matcher
+
+critique_globale:
+  description: >
+    Mission : Évaluation qualité du CV, des expériences et des projets (le regard de Roni).
+    1. Qualité CV : Évalue la compatibilité ATS, la quantification, et la grammaire/orthographe. IMPORTANT : La lecture PDF/OCR perd parfois les accents (ex: "mod le" au lieu de "modèle", "d veloppement"). IGNORE strictement ces erreurs typographiques liées aux accents manquants ou aux espaces inattendus. Ne remonte que les VRAIES fautes de grammaire, conjugaison ou d'accord. S'il y en a, justifie où elles sont.
+       Si une introduction est présente, tu dois : évaluer la cohérence de l'introduction avec le poste visé, met-elle en avant les qualités et les skills du candidat alignés sur le poste visé ? est-elle engageante et percutante ? est-elle concise ? va-t-elle donner envie au recruteur de vouloir aller plus loin ? Fournis une analyse objective, critique et rédigée directement au candidat (tutoiement) sur 1 bloc. Le résultat de cette évaluation devra être mis dans le JSON attendu `evaluation_introduction`: {"avis_critique": "..."} de `qualite_cv`.
+    2. Avis Expériences : (Format `evaluations_experiences`: {"Poste": {"is_tech": true, "note_coherence_tech": 8, "avis_roni": "..."}}). Juge de la pertinence, fais des recommandations précises, formule comme si on s'adressait au candidat (tutoiement) et prends en compte la longueur du texte (ne pas demander de raccourcir si c'est déjà une seule phrase).
+       - Pour chaque expérience, détermine s'il s'agit d'une expérience "Tech" (is_tech = True/False).
+       - Si c'est une expérience "Tech", attribue une note (note_coherence_tech) sur 10 évaluant la cohérence technique (outils, complexité).
+       - Si c'est "Non-Tech", attribue une note (note_soft_skills_valeur) sur 10 évaluant la mise en valeur des soft skills.
+
+    4. Conseils : Fournis des conseils d'amélioration fusionnés sous "tips_de_roni". Pour cela, prends du recul et analyse le CV dans sa GLOBALITÉ en t'appuyant sur les données JSON extraites :
+       - Vérifie le champ 'introduction' du JSON. S'il est vide ou absent, conseille formellement d'ajouter un résumé ou une introduction. S'il est présent, ne propose pas d'en ajouter un.
+       - Si le tableau 'projets' est vide ou absent, ajoute impérativement un conseil recommandant d'ajouter une section Projets (personnels, académiques ou open source) pour démontrer concrètement ses compétences techniques.
+       - Donne des conseils stratégiques pour optimiser le CV en prenant en compte : l'évaluation globale des projets, la présence ou l'absence de métriques, l'orthographe, et les compétences mises en avant (conseiller sur les compétences qui manquent de contexte pour être démontrables).
+  expected_output: >
+    Un objet (OutputRoni) contenant la qualité globale, les fautes, les tips de Roni, et les avis sur les expériences.
+  agent: roni
+  async_execution: true
+
+synthese_finale:
+  description: >
+    Mission : Synthèse finale et recommandations.
+    Produit une synthèse claire (contexte_recruteur) et consolide les données des agents précédents.
+  expected_output: >
+    Un objet (OutputStratege) contenant la synthèse finale.
+  agent: stratege
+  context:
+    - audit_projets
+    - analyse_parcours
+    - critique_globale
