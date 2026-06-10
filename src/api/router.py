@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from src.services.pipeline import execute_cv_pipeline, TASKS_STORE
 from src.core.db import get_db
 from src.core.config import settings
+from src.core.security import rate_limit_dependency
 
 router = APIRouter()
 
@@ -12,7 +13,8 @@ async def analyze_cv_async(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     job_description: str = Form(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: bool = Depends(rate_limit_dependency)
 ):
     if file.size > settings.MAX_FILE_SIZE_MB * 1024 * 1024:
         raise HTTPException(status_code=400, detail=f"File exceeds max size of {settings.MAX_FILE_SIZE_MB}MB")

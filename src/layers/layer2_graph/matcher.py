@@ -4,6 +4,7 @@ import asyncio
 from typing import Tuple, List, Dict, Any
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 from src.core.config import settings
 import logging
 
@@ -55,13 +56,24 @@ class JobProfileMatcher:
         best_indices = similarities.argsort()[-top_k:][::-1]
         
         results = []
+        scores = []
         for idx in best_indices:
             score = float(similarities[idx])
             if score >= 0.05:
-                results.append({"nom": self.metiers_names[idx], "confidence": score})
+                results.append({"nom": self.metiers_names[idx]})
+                scores.append(score)
                 
         if not results:
             return [{"nom": "Générique", "confidence": 0.0}]
+            
+        # Application du Softmax avec T=0.1
+        scores_arr = np.array(scores)
+        T = 0.1
+        exp_scores = np.exp(scores_arr / T)
+        softmax_scores = exp_scores / np.sum(exp_scores)
+        
+        for i, res in enumerate(results):
+            res["confidence"] = float(softmax_scores[i])
             
         return results
 

@@ -17,10 +17,20 @@ class Settings(BaseSettings):
     VERSION: str = "1.5"
 
     # LLM Settings
-    DEFAULT_LLM_PROVIDER: str = os.getenv("DEFAULT_LLM_PROVIDER")  
-    DEFAULT_LLM_MODEL: str = os.getenv("DEFAULT_LLM_MODEL")
-    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY")
-    MISTRAL_API_KEY: str = os.getenv("MISTRAL_API_KEY")
+    DEFAULT_LLM_PROVIDER: str = os.getenv("DEFAULT_LLM_PROVIDER", "openai")
+    DEFAULT_LLM_MODEL: str = os.getenv("DEFAULT_LLM_MODEL", "gpt-4o-mini")
+    VISION_LLM_PROVIDER: str = os.getenv("VISION_LLM_PROVIDER", "openai")
+    VISION_LLM_MODEL: str = os.getenv("VISION_LLM_MODEL", "gpt-4o")
+    OPENAI_API_KEY: str | None = os.getenv("OPENAI_API_KEY")
+    MISTRAL_API_KEY: str | None = os.getenv("MISTRAL_API_KEY")
+
+    # Security
+    INTERNAL_API_KEY: str = os.getenv("INTERNAL_API_KEY", "dev-secret-key-123")
+    ALLOWED_ORIGINS: str = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000")
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",") if origin.strip()]
 
     # Database
     POSTGRES_USER: str = os.getenv("POSTGRES_USER")
@@ -42,9 +52,22 @@ class Settings(BaseSettings):
     LAYER3_TIMEOUT_SECONDS: int = 180
     MAX_FILE_SIZE_MB: int = 5
 
+    def validate_keys(self):
+        # Validation basique des clés selon les providers choisis
+        if self.DEFAULT_LLM_PROVIDER == "openai" and not self.OPENAI_API_KEY:
+            raise ValueError("OPENAI_API_KEY is required when DEFAULT_LLM_PROVIDER is openai")
+        if self.DEFAULT_LLM_PROVIDER == "mistral" and not self.MISTRAL_API_KEY:
+            raise ValueError("MISTRAL_API_KEY is required when DEFAULT_LLM_PROVIDER is mistral")
+        if self.VISION_LLM_PROVIDER == "openai" and not self.OPENAI_API_KEY:
+            raise ValueError("OPENAI_API_KEY is required when VISION_LLM_PROVIDER is openai")
+        if self.VISION_LLM_PROVIDER == "mistral" and not self.MISTRAL_API_KEY:
+            raise ValueError("MISTRAL_API_KEY is required when VISION_LLM_PROVIDER is mistral")
+        return self
+
     class Config:
         env_file = ".env"
         case_sensitive = True
         extra = "ignore"
 
 settings = Settings()
+settings.validate_keys()

@@ -1,7 +1,31 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
+from enum import Enum
 
 # --- Modèles Sous-Jacents ---
+
+class ExperienceType(str, Enum):
+    PROFESSIONNELLE = "professionnelle"
+    STAGE = "stage"
+    ALTERNANCE = "alternance"
+    PROJET_ETUDIANT = "projet_etudiant"
+    BENEVOLAT = "benevolat"
+    AUTRE = "autre"
+
+class Formation(BaseModel):
+    titre_diplome: str = Field(description="Nom brut du diplôme ou de la formation")
+    etablissement: str = Field(description="Nom de l'école, université ou organisme")
+    date_debut: Optional[str] = Field(None, description="Date de début (YYYY-MM ou YYYY)")
+    date_fin: Optional[str] = Field(None, description="Date de fin (YYYY-MM ou present)")
+
+class Langue(BaseModel):
+    langue: str = Field(description="Nom de la langue")
+    niveau: str = Field(description="Niveau déclaré (ex: Courant, C1, Maternelle...)")
+
+class Certification(BaseModel):
+    nom: str = Field(description="Nom de la certification")
+    organisme: Optional[str] = Field(None, description="Organisme délivrant")
+    date_obtention: Optional[str] = Field(None, description="Date d'obtention si précisée")
 
 class LienExterne(BaseModel):
     url: str = Field(description="L'URL EXACTE et nettoyée (ex: linkedin.com/in/nom, github.com/nom). SÉPARER chaque lien dans un objet différent. Ignorer les mots parasites de l'OCR (ex: LINKEDIN GITHUB PORTFOLIO).")
@@ -65,8 +89,10 @@ class Experience(BaseModel):
     entreprise: str = Field(description="Nom de l'entreprise")
     start_date: str = Field(description="Date de début (YYYY-MM)")
     end_date: str = Field(description="Date de fin (YYYY-MM ou present)")
+    type: ExperienceType = Field(default=ExperienceType.PROFESSIONNELLE, description="Type de l'expérience (déterminé d'après le poste et les mots-clés)")
     responsabilites_brutes: List[str] = Field(description="Descriptif des responsabilités")
     metriques_identifiees: List[str] = Field(description="Liste des chiffres, volumes, KPIs mentionnés")
+    statut_temporel: Optional[str] = Field(default=None, description="Statut calculé (EN_COURS, TERMINEE, INDETERMINE)")
     evaluation_roni: Optional[EvaluationExperienceRoni] = None
 
 class Candidat(BaseModel):
@@ -82,6 +108,9 @@ class Candidat(BaseModel):
     skills: Skills
     experiences: List[Experience] = Field(default_factory=list)
     projets: Optional[List[Projet]] = Field(default=None)
+    formations: List[Formation] = Field(default_factory=list)
+    langues: List[Langue] = Field(default_factory=list)
+    certifications: List[Certification] = Field(default_factory=list)
 
 class AnalyseMatchingOffre(BaseModel):
     is_offre_fournie: bool = Field(description="Indique si une description de poste a été traitée")
@@ -145,6 +174,11 @@ class ExtractExperiences(BaseModel):
 class ExtractProjets(BaseModel):
     projets: Optional[List[ProjetBrut]] = Field(default=None, description="Liste exhaustive des projets personnels ou académiques.")
 
+class ExtractFormationsLangues(BaseModel):
+    formations: List[Formation] = Field(default_factory=list, description="Liste exhaustive des formations et diplômes.")
+    langues: List[Langue] = Field(default_factory=list, description="Liste exhaustive des langues parlées.")
+    certifications: List[Certification] = Field(default_factory=list, description="Liste exhaustive des certifications.")
+
 class ExtractHeaderVision(BaseModel):
     first_name: str = Field(description="Prénom uniquement.")
     poste_vise_header: Optional[str] = Field(None, description="Titre du poste visé extrait de l'en-tête.")
@@ -164,6 +198,9 @@ class CVExtractionBrute(BaseModel):
     skills: Skills
     experiences: List[Experience] = Field(default_factory=list)
     projets: Optional[List[ProjetBrut]] = Field(default=None)
+    formations: List[Formation] = Field(default_factory=list)
+    langues: List[Langue] = Field(default_factory=list)
+    certifications: List[Certification] = Field(default_factory=list)
 
 
 # --- Modèles de Sortie Pydantic (Couche 3 CrewAI) ---
@@ -182,7 +219,6 @@ class OutputProfileur(BaseModel):
 
 class OutputRoni(BaseModel):
     qualite_cv: QualiteCV
-    production_readiness_score: int = Field(description="Score de préparation pour la production sur 100")
     evaluations_experiences: Dict[str, EvaluationExperienceRoni] = Field(description="Dictionnaire où la clé est l'intitulé exact du poste.")
 
 class OutputStratege(BaseModel):

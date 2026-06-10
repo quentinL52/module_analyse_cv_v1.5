@@ -1,9 +1,11 @@
 from src.schemas.cv_schema import Candidat, ScoreMultidimensionnel
 
-def compute_multidimensional_score(candidat: Candidat) -> ScoreMultidimensionnel:
+from typing import Tuple
+
+def compute_multidimensional_score(candidat: Candidat) -> Tuple[ScoreMultidimensionnel, int]:
     """
     Calcule le score multidimensionnel déterministe d'un CV.
-    Retourne un objet ScoreMultidimensionnel avec des notes sur 100.
+    Retourne un objet ScoreMultidimensionnel avec des notes sur 100 et le production_readiness_score.
     """
     # ---------------------------------------------------------
     # 1. Dimension Aspect (Structure)
@@ -38,8 +40,12 @@ def compute_multidimensional_score(candidat: Candidat) -> ScoreMultidimensionnel
     if candidat.projets and len(candidat.projets) > 0:
         total_projets_score = 0.0
         for p in candidat.projets:
-            # Le score du projet est directement fourni par le LLM en pourcentage
-            p_score = float(p.score_general_projet_pourcent) if p.score_general_projet_pourcent is not None else 50.0
+            # Le score du projet est calculé à partir des 3 axes
+            if p.axe_impact_metier and p.axe_complexite_tech and p.axe_alignement_strat:
+                p_score = (p.axe_impact_metier.score + p.axe_complexite_tech.score + p.axe_alignement_strat.score) / 3.0 * 10.0
+                p.score_general_projet_pourcent = int(round(p_score))
+            else:
+                p_score = float(p.score_general_projet_pourcent) if p.score_general_projet_pourcent is not None else 50.0
             total_projets_score += p_score
             
         score_projets = total_projets_score / len(candidat.projets)
@@ -79,9 +85,17 @@ def compute_multidimensional_score(candidat: Candidat) -> ScoreMultidimensionnel
     # ---------------------------------------------------------
     score_global = round((score_aspect_final + score_projets + score_experiences) / 3.0, 2)
     
-    return ScoreMultidimensionnel(
+    # Calcul du production readiness score (Option A)
+    bonus = 0.0
+    if candidat.skills and (len(candidat.skills.hard_skills) > 5):
+        bonus += 5.0
+    production_readiness_score = int(round(0.4 * score_experiences + 0.4 * score_projets + 0.2 * score_aspect_final + bonus))
+    production_readiness_score = min(100, max(0, production_readiness_score))
+    
+    score_multi = ScoreMultidimensionnel(
         score_aspect=round(score_aspect_final, 2),
         score_projets=round(score_projets, 2),
         score_experiences=round(score_experiences, 2),
         score_global=score_global
     )
+    return score_multi, production_readiness_score

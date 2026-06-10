@@ -36,10 +36,10 @@ def get_crewai_llm():
     model = settings.DEFAULT_LLM_MODEL
     
     if provider == "openai":
-        return LLM(model=model, api_key=settings.OPENAI_API_KEY, max_retries=4)
+        return LLM(model=model, api_key=settings.OPENAI_API_KEY, max_retries=4, temperature=0.1)
     elif provider == "mistral":
         # Pour LiteLLM, il faut préfixer les modèles mistral
-        return LLM(model=f"mistral/{model}", api_key=settings.MISTRAL_API_KEY, max_retries=4)
+        return LLM(model=f"mistral/{model}", api_key=settings.MISTRAL_API_KEY, max_retries=4, temperature=0.1)
     else:
         raise ValueError(f"Provider LLM non supporté par CrewAI : {provider}")
 
@@ -69,8 +69,7 @@ class CVCrewOrchestrator:
         agents = {}
         for agent_name, config in self.agents_config.items():
             backstory = config['backstory']
-            if agent_name in ['auditeur', 'roni', 'profileur']:
-                backstory += time_context
+            backstory += time_context
                 
             agents[agent_name] = Agent(
                 role=config['role'],
@@ -146,9 +145,16 @@ class CVCrewOrchestrator:
         return tasks
 
     async def run_async(self, json_cv: dict, offre_emploi_texte: str = None) -> dict:
+        import copy
+        safe_json_cv = copy.deepcopy(json_cv)
+        if 'first_name' in safe_json_cv:
+            safe_json_cv['first_name'] = 'ANONYMISÉ'
+        if 'liens_externes' in safe_json_cv:
+            safe_json_cv['liens_externes'] = []
+            
         agents = self.create_agents()
         # On crée les tâches (qui sont liées à leurs agents)
-        self.create_tasks(agents, json_cv, offre_emploi_texte)
+        self.create_tasks(agents, safe_json_cv, offre_emploi_texte)
 
         # Exécution parallèle protégée par le sémaphore
         parallel_tasks = [self.task_audit_projets, self.task_parcours, self.task_roni]

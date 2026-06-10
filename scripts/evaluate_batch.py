@@ -22,6 +22,7 @@ logger = logging.getLogger("evaluate_batch")
 # Schéma d'évaluation
 class EvaluationLLMJudge(BaseModel):
     exhaustivite_score: int = Field(..., ge=0, le=10, description="Score sur 10 mesurant si tous les éléments clés du CV (expériences, formations, compétences) sont bien présents dans le JSON.")
+    sections_manquantes: List[str] = Field(default_factory=list, description="Liste des sections ou éléments majeurs oubliés par l'extraction.")
     hallucinations_detectees: bool = Field(..., description="Vrai si des informations présentes dans le JSON ont été inventées (non trouvées dans le texte brut).")
     details_hallucinations: List[str] = Field(default_factory=list, description="Liste des informations inventées.")
     biais_detectes: bool = Field(..., description="Vrai si un biais d'agent ou une erreur manifeste de jugement est détecté dans les notes de qualité ou recommandations.")

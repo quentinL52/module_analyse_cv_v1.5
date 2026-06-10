@@ -8,17 +8,16 @@ audit_projets:
     Ton analyse doit être factuelle et équilibrée. Base chaque score uniquement sur les preuves présentes dans le texte.
     Évalue la pertinence de la solution technique par rapport au problème résolu, indépendamment du type d'outils choisis.
     
-    Nouveau système CTO de Sub-Scoring avec 3 Axes :
-    Axe 1: Impact & Compréhension Métier (clarté problème, impact, etc.)
-    Axe 2: Complexité & Stack Technique (densité ingénierie, maturité, etc.)
-    Axe 3: Alignement Stratégique & Transférabilité (valeur marchande, transfert)
+    Nouveau système CTO de Sub-Scoring avec 3 Axes (utilise strictement ces barèmes) :
+    Axe 1: Impact & Compréhension Métier (0-3: Aucun contexte métier, 4-6: Problème décrit mais impact flou, 7-10: Métriques claires, ROI ou utilisateurs réels)
+    Axe 2: Complexité & Stack Technique (0-3: Tutoriel basique/Hello world, 4-6: CRUD standard avec framework, 7-10: Architecture distribuée, asynchrone, CI/CD avancée)
+    Axe 3: Alignement Stratégique & Transférabilité (0-3: Techno obsolète ou de niche, 4-6: Stack moderne classique, 7-10: Best practices, cloud, sécurité, forte valeur marchande)
     
     Pour CHAQUE projet, tu dois générer :
     - `avis_cto` : critique globale CTO et cohérence poste, tutoiement
     - `axe_impact_metier` : avec justification et score/10
     - `axe_complexite_tech` : avec justification et score/10
     - `axe_alignement_strat` : avec justification et score/10
-    - `score_general_projet_pourcent` : la moyenne des 3 scores * 10
   expected_output: >
     JSON strictement conforme : {{
       "projets": [
@@ -27,8 +26,7 @@ audit_projets:
           "avis_cto": "<Ton avis global CTO s'adressant au candidat>",
           "axe_impact_metier": {{ "justification": "<...>", "score": <entier 0-10> }},
           "axe_complexite_tech": {{ "justification": "<...>", "score": <entier 0-10> }},
-          "axe_alignement_strat": {{ "justification": "<...>", "score": <entier 0-10> }},
-          "score_general_projet_pourcent": <entier 0-100>
+          "axe_alignement_strat": {{ "justification": "<...>", "score": <entier 0-10> }}
         }}
       ]
     }}
@@ -62,7 +60,7 @@ critique_globale:
     1. Qualité CV : Évalue la compatibilité ATS, la quantification, et la grammaire/orthographe. IMPORTANT : La lecture PDF/OCR perd parfois les accents (ex: "mod le" au lieu de "modèle", "d veloppement"). IGNORE strictement ces erreurs typographiques liées aux accents manquants ou aux espaces inattendus. Ne remonte que les VRAIES fautes de grammaire, conjugaison ou d'accord. S'il y en a, justifie où elles sont.
        Si une introduction est présente, tu dois : évaluer la cohérence de l'introduction avec le poste visé, met-elle en avant les qualités et les skills du candidat alignés sur le poste visé ? est-elle engageante et percutante ? est-elle concise ? va-t-elle donner envie au recruteur de vouloir aller plus loin ? Fournis une analyse objective, critique et rédigée directement au candidat (tutoiement) sur 1 bloc. Le résultat de cette évaluation devra être mis dans le JSON attendu `evaluation_introduction`: {"avis_critique": "..."} de `qualite_cv`.
     2. Avis Expériences : (Format `evaluations_experiences`: {"Poste": {"is_tech": true, "note_coherence_tech": 8, "avis_roni": "..."}}). Juge de la pertinence, fais des recommandations précises, formule comme si on s'adressait au candidat (tutoiement) et prends en compte la longueur du texte (ne pas demander de raccourcir si c'est déjà une seule phrase).
-       - Pour chaque expérience, détermine s'il s'agit d'une expérience "Tech" (is_tech = True/False).
+       - Pour chaque expérience, détermine s'il s'agit d'une expérience "Tech" (is_tech = True/False). Règle stricte: "is_tech" est True UNIQUEMENT SI le candidat a lui-même produit ou maintenu des éléments techniques (code, infra, data). Exemples symétriques: 'Support N1' = False, 'DevOps' = True ; 'Chef de projet' = False, 'Tech Lead' = True ; 'Vente de logiciel' = False, 'Création de logiciel' = True.
        - Si c'est une expérience "Tech", attribue une note (note_coherence_tech) sur 10 évaluant la cohérence technique (outils, complexité).
        - Si c'est "Non-Tech", attribue une note (note_soft_skills_valeur) sur 10 évaluant la mise en valeur des soft skills.
 
@@ -79,6 +77,7 @@ synthese_finale:
   description: >
     Mission : Synthèse finale et recommandations.
     Produit une synthèse claire (contexte_recruteur) et consolide les données des agents précédents.
+    CONTRAINTE TEMPORELLE STRICTE : Tu as interdiction absolue de déduire le statut en cours ou terminé d'une expérience par toi-même. Tu DOIS obligatoirement utiliser la valeur du champ `statut_temporel` fourni pour chaque expérience pour rédiger ta synthèse. (Utilise le présent uniquement si statut_temporel est "EN_COURS").
   expected_output: >
     Un objet (OutputStratege) contenant la synthèse finale.
   agent: stratege

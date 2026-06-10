@@ -31,3 +31,21 @@ def get_default_model_name() -> str:
     Retourne le nom du modèle configuré pour éviter de l'écrire en dur dans le code métier.
     """
     return settings.DEFAULT_LLM_MODEL
+
+def get_vision_client_and_model():
+    """
+    Retourne un tuple (client, model_name) pour le provider Vision configuré.
+    """
+    provider = settings.VISION_LLM_PROVIDER.lower()
+    
+    if provider == "openai":
+        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        return instructor.from_openai(client), settings.VISION_LLM_MODEL
+        
+    elif provider == "mistral":
+        client = Mistral(api_key=settings.MISTRAL_API_KEY)
+        return instructor.from_mistral(client), settings.VISION_LLM_MODEL
+        
+    else:
+        raise ValueError(f"Fournisseur Vision LLM non supporté : {provider}")
+

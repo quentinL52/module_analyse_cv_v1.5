@@ -1,20 +1,20 @@
 import asyncio
 import instructor
-from openai import OpenAI
-from src.schemas.cv_schema import CVExtractionBrute, ExtractIdentiteSkills, ExtractExperiences, ExtractProjets, ExtractHeaderVision
+from src.schemas.cv_schema import CVExtractionBrute, ExtractIdentiteSkills, ExtractExperiences, ExtractProjets, ExtractHeaderVision, ExtractFormationsLangues
 from src.prompts.extraction_prompts import EXTRACTOR_SYSTEM_PROMPT
 from src.core.config import settings
+from src.core.llm_factory import get_instructor_client, get_default_model_name, get_vision_client_and_model
 import logging
 from src.layers.layer1_ingestion.extractor import extractor
 
 logger = logging.getLogger(__name__)
 
 async def extract_header_with_vision(base64_img: str) -> ExtractHeaderVision:
-    client = instructor.from_openai(OpenAI(api_key=settings.OPENAI_API_KEY))
+    client, model_name = get_vision_client_and_model()
     
     def _sync_call():
         return client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=model_name,
             response_model=ExtractHeaderVision,
             messages=[
                 {"role": "system", "content": "Tu es un expert RH. Extrais les informations d'identité depuis l'image de la première page de ce CV."},
@@ -33,8 +33,8 @@ async def parse_cv_brute(texte_cv: str, pdf_bytes: bytes = None) -> CVExtraction
     Lancement en parallèle de 3 requêtes (Identité, Expériences, Projets) avec gpt-4o-mini.
     Intègre un timeout de sécurité (20s).
     """
-    client = instructor.from_openai(OpenAI(api_key=settings.OPENAI_API_KEY))
-    model = "gpt-4o-mini"
+    client = get_instructor_client()
+    model = get_default_model_name()
     
     async def _extract_identite():
         def _sync_call():
@@ -75,16 +75,30 @@ async def parse_cv_brute(texte_cv: str, pdf_bytes: bytes = None) -> CVExtraction
             )
         return await asyncio.to_thread(_sync_call)
 
+    async def _extract_formations_langues():
+        def _sync_call():
+            return client.chat.completions.create(
+                model=model,
+                response_model=ExtractFormationsLangues,
+                messages=[
+                    {"role": "system", "content": EXTRACTOR_SYSTEM_PROMPT},
+                    {"role": "user", "content": f"Voici le texte du CV à extraire :\n\n{texte_cv}"}
+                ],
+                max_retries=3
+            )
+        return await asyncio.to_thread(_sync_call)
+
     async def _run_parallel():
         return await asyncio.gather(
             _extract_identite(),
             _extract_experiences(),
-            _extract_projets()
+            _extract_projets(),
+            _extract_formations_langues()
         )
 
     try:
         # Timeout strict de la Couche 1
-        res_identite, res_experiences, res_projets = await asyncio.wait_for(_run_parallel(), timeout=settings.LAYER1_TIMEOUT_SECONDS)
+        res_identite, res_experiences, res_projets, res_formations = await asyncio.wait_for(_run_parallel(), timeout=settings.LAYER1_TIMEOUT_SECONDS)
         
         # Self-healing : Fallback Vision si identité échoue ou manque de champs cruciaux
         if pdf_bytes and (not res_identite.first_name or res_identite.first_name.lower() in ["n/a", "non précisé", "inconnu", "null", ""] or not res_identite.poste_vise_header):
@@ -118,7 +132,10 @@ async def parse_cv_brute(texte_cv: str, pdf_bytes: bytes = None) -> CVExtraction
             grammaire_orthographe=res_identite.grammaire_orthographe,
             skills=res_identite.skills,
             experiences=res_experiences.experiences,
-            projets=res_projets.projets
+            projets=res_projets.projets,
+            formations=res_formations.formations,
+            langues=res_formations.langues,
+            certifications=res_formations.certifications
         )
 
     except asyncio.TimeoutError:

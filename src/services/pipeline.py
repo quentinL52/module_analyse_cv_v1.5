@@ -9,11 +9,40 @@ from src.layers.layer3_agents.crew_orchestrator import run_agentic_eval_async
 from src.schemas.cv_schema import CVParsedFinal, Candidat, RecommandationsAgentiques, QualiteCV, AnalyseMatchingOffre, Projet, EvaluationExperienceRoni, CompetenceTransferable
 from src.services.scoring_cv import compute_multidimensional_score
 from src.core.db import CVMetrics
+from src.core.llm_factory import get_default_model_name
 import time
+from datetime import datetime
+import re
 
 logger = logging.getLogger(__name__)
 
 TASKS_STORE = {}
+
+def annotate_temporal_status(experiences, today):
+    for exp in experiences:
+        end = exp.end_date.strip().lower() if exp.end_date else ""
+        if not end or end in ["present", "présent", "en cours", "aujourd'hui", "now"]:
+            exp.statut_temporel = "EN_COURS"
+            continue
+        
+        match = re.search(r'(\d{4})', end)
+        if match:
+            year = int(match.group(1))
+            month_match = re.search(r'(\d{4})-(\d{2})', end)
+            if month_match:
+                month = int(month_match.group(2))
+            else:
+                month = 12
+            
+            if year > today.year or (year == today.year and month >= today.month):
+                exp.statut_temporel = "EN_COURS"
+            else:
+                exp.statut_temporel = "TERMINEE"
+        else:
+            exp.statut_temporel = "INDETERMINE"
+            
+    return experiences
+
 
 async def execute_cv_pipeline(task_id: str, pdf_bytes: bytes, filename: str, job_description: str, db):
     try:
@@ -31,9 +60,15 @@ async def execute_cv_pipeline(task_id: str, pdf_bytes: bytes, filename: str, job
         brute_data = await parse_cv_brute(texte_cv, pdf_bytes)
         t_extraction = time.time() - t0
         
+        today = datetime.now()
+        brute_data.experiences = annotate_temporal_status(brute_data.experiences, today)
+        
         # Couche 2: Graph Matching
         logger.info(f"Task {task_id}: Lancement de la Couche 2 (Matcher Graph).")
         flat_hard_skills = [s.skill for s in brute_data.skills.hard_skills]
+        if hasattr(brute_data, "formations") and brute_data.formations:
+            flat_hard_skills.extend([f.titre_diplome for f in brute_data.formations if f.titre_diplome])
+            
         top_profiles = await get_dominant_profile_async(flat_hard_skills, top_k=3)
         
         # Couche 3: Évaluation Agentique
@@ -110,10 +145,13 @@ async def execute_cv_pipeline(task_id: str, pdf_bytes: bytes, filename: str, job
             is_disponible=profileur_data.get("is_disponible"),
             skills=brute_data.skills,
             experiences=brute_data.experiences,
-            projets=final_projets
+            projets=final_projets,
+            formations=brute_data.formations,
+            langues=brute_data.langues,
+            certifications=brute_data.certifications
         )
         
-        score_multi = compute_multidimensional_score(candidat)
+        score_multi, prod_readiness_score = compute_multidimensional_score(candidat)
         
         qualite_cv_data = roni_data.get("qualite_cv")
         if qualite_cv_data:
@@ -121,12 +159,19 @@ async def execute_cv_pipeline(task_id: str, pdf_bytes: bytes, filename: str, job
             qualite_cv_obj.score_multidimensionnel = score_multi
         else:
             qualite_cv_obj = None
+        contexte_recruteur = stratege_data.get("contexte_recruteur", "")
+        
+        has_en_cours = any(exp.statut_temporel == "EN_COURS" for exp in brute_data.experiences)
+        if not has_en_cours and contexte_recruteur:
+            if re.search(r'\b(actuellement|aujourd\'hui|occupe|travaille|en poste)\b', contexte_recruteur, re.IGNORECASE):
+                logger.warning(f"temporal_inconsistency Task {task_id}: Le contexte_recruteur semble utiliser le présent alors qu'aucune expérience n'est EN_COURS.")
+        
         recos = RecommandationsAgentiques(
             profil_calcule_knowledge_graph=top_profiles,
-            production_readiness_score=roni_data.get("production_readiness_score"),
+            production_readiness_score=prod_readiness_score,
             analyse_matching_offre=AnalyseMatchingOffre(**ats_data) if ats_data else None,
             qualite_cv=qualite_cv_obj,
-            contexte_recruteur=stratege_data.get("contexte_recruteur", ""),
+            contexte_recruteur=contexte_recruteur,
             axes_entretien_simulateur=stratege_data.get("axes_entretien_simulateur", [])
         )
         
@@ -137,7 +182,7 @@ async def execute_cv_pipeline(task_id: str, pdf_bytes: bytes, filename: str, job
         
         metrics = CVMetrics(
             filename=filename,
-            model_used="gpt-4o-mini+crewai",
+            model_used=f"{get_default_model_name()}+crewai",
             duree_etape_1_ocr=t_ocr,
             duree_etape_2_extraction=t_extraction,
             duree_etape_4_agents=t_agents,
