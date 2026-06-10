@@ -21,7 +21,10 @@ TASKS_STORE = {}
 def annotate_temporal_status(experiences, today):
     for exp in experiences:
         end = exp.end_date.strip().lower() if exp.end_date else ""
-        if not end or end in ["present", "présent", "en cours", "aujourd'hui", "now"]:
+        if not end:
+            exp.statut_temporel = "INDETERMINE"
+            continue
+        if end in ["present", "présent", "en cours", "aujourd'hui", "now"]:
             exp.statut_temporel = "EN_COURS"
             continue
         

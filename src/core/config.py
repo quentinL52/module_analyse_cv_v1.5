@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     MISTRAL_API_KEY: str | None = os.getenv("MISTRAL_API_KEY")
 
     # Security
-    INTERNAL_API_KEY: str = os.getenv("INTERNAL_API_KEY", "dev-secret-key-123")
+    INTERNAL_API_KEY: str | None = os.getenv("INTERNAL_API_KEY")
     ALLOWED_ORIGINS: str = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000")
 
     @property
@@ -54,6 +54,8 @@ class Settings(BaseSettings):
 
     def validate_keys(self):
         # Validation basique des clés selon les providers choisis
+        if not self.INTERNAL_API_KEY or len(self.INTERNAL_API_KEY) < 16:
+            raise ValueError("INTERNAL_API_KEY est obligatoire et doit faire au moins 16 caractères. Générer avec: python -c \"import secrets; print(secrets.token_urlsafe(32))\"")
         if self.DEFAULT_LLM_PROVIDER == "openai" and not self.OPENAI_API_KEY:
             raise ValueError("OPENAI_API_KEY is required when DEFAULT_LLM_PROVIDER is openai")
         if self.DEFAULT_LLM_PROVIDER == "mistral" and not self.MISTRAL_API_KEY:

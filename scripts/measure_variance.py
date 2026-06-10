@@ -68,6 +68,27 @@ async def main():
                             scores_data[filename]["production_readiness"].append(prod_score)
                         if score_global is not None:
                             scores_data[filename]["score_global"].append(score_global)
+
+                        # Extract is_tech for experiences
+                        candidat = result.get("candidat", {})
+                        for exp in candidat.get("experiences", []):
+                            poste = exp.get("poste", "Inconnu")
+                            eval_roni = exp.get("evaluation_roni")
+                            if eval_roni is not None and "is_tech" in eval_roni:
+                                scores_data[filename][f"is_tech::{poste}"].append(eval_roni["is_tech"])
+                                
+                        # Extract axes for projets
+                        for projet in candidat.get("projets", []) or []:
+                            title = projet.get("title", "Inconnu")
+                            axe_impact = projet.get("axe_impact_metier")
+                            if axe_impact is not None and "score" in axe_impact:
+                                scores_data[filename][f"axe_impact::{title}"].append(axe_impact["score"])
+                            axe_complexite = projet.get("axe_complexite_tech")
+                            if axe_complexite is not None and "score" in axe_complexite:
+                                scores_data[filename][f"axe_complexite::{title}"].append(axe_complexite["score"])
+                            axe_alignement = projet.get("axe_alignement_strat")
+                            if axe_alignement is not None and "score" in axe_alignement:
+                                scores_data[filename][f"axe_alignement::{title}"].append(axe_alignement["score"])
                     else:
                         logger.error(f"Pipeline échoué pour {filename} au run {run_idx}.")
                         
@@ -81,32 +102,58 @@ async def main():
     report = {}
     
     for filename, scores in scores_data.items():
-        prod_scores = scores.get("production_readiness", [])
-        global_scores = scores.get("score_global", [])
-        
         file_report = {}
         
+        prod_scores = scores.get("production_readiness", [])
         if prod_scores:
-            mean_prod = np.mean(prod_scores)
-            std_prod = np.std(prod_scores)
-            var_prod = np.var(prod_scores)
             file_report["production_readiness"] = {
                 "valeurs": prod_scores,
-                "moyenne": round(float(mean_prod), 2),
-                "ecart_type": round(float(std_prod), 2),
-                "variance": round(float(var_prod), 2)
+                "moyenne": round(float(np.mean(prod_scores)), 2),
+                "ecart_type": round(float(np.std(prod_scores)), 2),
+                "variance": round(float(np.var(prod_scores)), 2)
             }
             
+        global_scores = scores.get("score_global", [])
         if global_scores:
-            mean_glob = np.mean(global_scores)
-            std_glob = np.std(global_scores)
-            var_glob = np.var(global_scores)
             file_report["score_global"] = {
                 "valeurs": global_scores,
-                "moyenne": round(float(mean_glob), 2),
-                "ecart_type": round(float(std_glob), 2),
-                "variance": round(float(var_glob), 2)
+                "moyenne": round(float(np.mean(global_scores)), 2),
+                "ecart_type": round(float(np.std(global_scores)), 2),
+                "variance": round(float(np.var(global_scores)), 2)
             }
+            
+        is_tech_stable = True
+        std_axes_pass = True
+        std_global_pass = (not global_scores) or (np.std(global_scores) <= 4.0)
+        failed_thresholds = []
+
+        if global_scores and np.std(global_scores) > 4.0:
+            failed_thresholds.append(f"score_global std > 4.0 ({round(float(np.std(global_scores)), 2)})")
+            
+        for key, vals in scores.items():
+            if key.startswith("is_tech::"):
+                if len(set(vals)) == 1 and len(vals) == NUM_RUNS:
+                    file_report[key] = {"status": "STABLE", "valeurs": vals}
+                else:
+                    file_report[key] = {"status": "INSTABLE", "valeurs": vals}
+                    is_tech_stable = False
+                    failed_thresholds.append(f"{key} INSTABLE")
+            elif key.startswith("axe_"):
+                std_val = round(float(np.std(vals)), 2)
+                file_report[key] = {
+                    "valeurs": vals,
+                    "moyenne": round(float(np.mean(vals)), 2),
+                    "ecart_type": std_val
+                }
+                if std_val > 1.0:
+                    std_axes_pass = False
+                    failed_thresholds.append(f"{key} std > 1.0 ({std_val})")
+                    
+        verdict = "PASS" if (is_tech_stable and std_axes_pass and std_global_pass) else "FAIL"
+        file_report["verdict_global"] = {
+            "resultat": verdict,
+            "seuils_violes": failed_thresholds
+        }
             
         report[filename] = file_report
         logger.info(f"Fichier: {filename}")

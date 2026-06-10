@@ -15,9 +15,24 @@ Règles absolues (Hard Rules) :
     - `hard_skills` : Les outils techniques, langages, frameworks.
     - `soft_skills` : Les savoir-être et compétences comportementales. Le champ 'transferable' doit rester null, il sera rempli plus tard.
     Pour CHAQUE compétence (hard ou soft), indique le contexte dans lequel elle a été utilisée (ex: projet, environnement).
-9. Couverture intégrale : Tu dois extraire l'intégralité des formations, diplômes, langues, et certifications mentionnés. Ne laisse rien de côté.
-10. Catégorisation des expériences par mots : Assigne correctement le type de l'expérience en te basant sur les mots exacts du texte (stage, alternance, professionnelle, projet_etudiant, etc.). Aucune déduction, base-toi strictement sur le texte.
-11. Métriques et Rédaction neutre : Lors de l'extraction, garde une écriture purement factuelle et neutre.
+9. Couverture intégrale du document : CHAQUE section du CV doit être rattachée à un champ
+   du schéma. Destinations obligatoires :
+   - Formations, diplômes, écoles, classes préparatoires, baccalauréat -> `formations`
+   - Langues et certifications linguistiques (TOEIC, TOEFL, IELTS, Cambridge...) -> `langues`
+   - Certifications techniques ou professionnelles -> `certifications`
+   - Engagements associatifs, responsabilités en club/BDE/BDS, coaching, bénévolat,
+     parcours ou section sportive -> tableau `experiences`, avec le `type` correspondant
+     (associatif, sportif ou benevolat). Le titre de la section dans le CV (ex:
+     "Engagement associatif", "Parcours sportif") détermine le type. Les responsabilités
+     et résultats listés sont copiés dans `responsabilites_brutes` sans reformulation.
+10. `type` d'expérience : classe UNIQUEMENT d'après les mots présents dans le CV
+    (ex: "Stage" -> stage, "Alternance" -> alternance, section associative -> associatif,
+    section sportive -> sportif). Ne déduis jamais un type absent du texte. En cas
+    d'ambiguïté : "autre".
+11. Métriques pour TOUS les types d'expérience : un classement sportif ("5e aux
+    Championnats de France"), une durée d'engagement ("depuis 5 ans"), un score de
+    certification sont des métriques à copier À L'IDENTIQUE dans `metriques_identifiees`
+    de l'expérience concernée. L'écriture reste purement factuelle et neutre.
 
 Analyse le texte du CV fourni et retourne l'objet JSON correspondant à la structure demandée.
 """

@@ -8,16 +8,37 @@ audit_projets:
     Ton analyse doit être factuelle et équilibrée. Base chaque score uniquement sur les preuves présentes dans le texte.
     Évalue la pertinence de la solution technique par rapport au problème résolu, indépendamment du type d'outils choisis.
     
-    Nouveau système CTO de Sub-Scoring avec 3 Axes (utilise strictement ces barèmes) :
-    Axe 1: Impact & Compréhension Métier (0-3: Aucun contexte métier, 4-6: Problème décrit mais impact flou, 7-10: Métriques claires, ROI ou utilisateurs réels)
-    Axe 2: Complexité & Stack Technique (0-3: Tutoriel basique/Hello world, 4-6: CRUD standard avec framework, 7-10: Architecture distribuée, asynchrone, CI/CD avancée)
-    Axe 3: Alignement Stratégique & Transférabilité (0-3: Techno obsolète ou de niche, 4-6: Stack moderne classique, 7-10: Best practices, cloud, sécurité, forte valeur marchande)
-    
-    Pour CHAQUE projet, tu dois générer :
-    - `avis_cto` : critique globale CTO et cohérence poste, tutoiement
-    - `axe_impact_metier` : avec justification et score/10
-    - `axe_complexite_tech` : avec justification et score/10
-    - `axe_alignement_strat` : avec justification et score/10
+    Système de Sub-Scoring avec 3 Axes. RÈGLES DE NOTATION OBLIGATOIRES :
+    - Pour chaque axe, choisis d'abord la tranche dont TOUS les critères sont satisfaits
+      par des éléments PRÉSENTS dans le texte, puis affine la note dans la tranche.
+    - Chaque justification DOIT citer entre guillemets le ou les passages exacts du CV
+      qui fondent la note. Si aucune citation n'est possible pour un axe : note dans la
+      tranche 0-2 et justification "information absente du CV".
+    - Ne déduis JAMAIS une caractéristique non écrite, ni positivement ni négativement.
+    - Aucune technologie n'est jugée "obsolète", "de niche" ou "à la mode" : seul compte
+      ce que le texte démontre.
+
+    Axe 1 — Impact & Compréhension Métier :
+      0-2 : aucun problème ni utilisateur identifiable dans la description.
+      3-4 : un problème est nommé, mais sans destinataire ni contexte d'usage.
+      5-6 : problème et destinataire identifiables, aucun résultat mesuré.
+      7-8 : problème, destinataire ET au moins un résultat ou métrique d'usage cités dans le texte.
+      9-10 : résultat quantifié + indication d'usage réel (utilisateurs, mise en production, adoption) cités dans le texte.
+
+    Axe 2 — Complexité & Stack Technique :
+      0-2 : aucune technologie nommée, ou description ne permettant pas de savoir ce qui a été construit.
+      3-4 : technologies nommées, mais réalisation non identifiable dans le texte.
+      5-6 : un composant unique identifiable (un modèle, un script, une application simple) avec une stack cohérente.
+      7-8 : plusieurs composants intégrés décrits dans le texte (ex: front + back + base de données ; pipeline + modèle + restitution).
+      9-10 : intégration multi-composants + éléments d'industrialisation cités dans le texte (tests, CI/CD, déploiement, monitoring, volumétrie).
+
+    Axe 3 — Alignement avec le poste visé (champ poste_vise_header) :
+      0-2 : aucun recouvrement entre les compétences mobilisées par le projet et le poste visé.
+      3-4 : recouvrement uniquement sur des compétences génériques (bureautique, gestion de projet...).
+      5-6 : recouvrement sur au moins une compétence cœur du poste visé.
+      7-8 : recouvrement sur plusieurs compétences cœur du poste visé.
+      9-10 : le projet reproduit une tâche type du poste visé, avec les outils du domaine.
+      Si poste_vise_header est null : note 5 par défaut et justification "poste visé non précisé dans le CV".
   expected_output: >
     JSON strictement conforme : {{
       "projets": [

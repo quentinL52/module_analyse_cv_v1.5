@@ -9,6 +9,8 @@ class ExperienceType(str, Enum):
     STAGE = "stage"
     ALTERNANCE = "alternance"
     PROJET_ETUDIANT = "projet_etudiant"
+    ASSOCIATIF = "associatif"
+    SPORTIF = "sportif"
     BENEVOLAT = "benevolat"
     AUTRE = "autre"
 
@@ -20,8 +22,8 @@ class Formation(BaseModel):
 
 class Langue(BaseModel):
     langue: str = Field(description="Nom de la langue")
-    niveau: str = Field(description="Niveau déclaré (ex: Courant, C1, Maternelle...)")
-
+    niveau: Optional[str] = Field(None, description="Niveau tel qu'écrit dans le CV (ex: 'Courant', 'C1', 'Maternelle'). null si non précisé.")
+    certification: Optional[str] = Field(None, description="Certification linguistique et score, copiés à l'identique du CV (ex: 'TOEIC : 945/990'). null si absent.")
 class Certification(BaseModel):
     nom: str = Field(description="Nom de la certification")
     organisme: Optional[str] = Field(None, description="Organisme délivrant")
