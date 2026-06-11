@@ -19,8 +19,12 @@ class Settings(BaseSettings):
     # LLM Settings
     DEFAULT_LLM_PROVIDER: str = os.getenv("DEFAULT_LLM_PROVIDER", "openai")
     DEFAULT_LLM_MODEL: str = os.getenv("DEFAULT_LLM_MODEL", "gpt-4o-mini")
+    # Couche 1 (extraction déterministe) : un petit modèle suffit, séparé des agents.
+    # Retombe sur le provider/modèle par défaut si non précisé dans le .env.
+    LAYER1_LLM_PROVIDER: str = os.getenv("LAYER1_LLM_PROVIDER", os.getenv("DEFAULT_LLM_PROVIDER", "openai"))
+    LAYER1_LLM_MODEL: str = os.getenv("LAYER1_LLM_MODEL", os.getenv("DEFAULT_LLM_MODEL", "gpt-4o-mini"))
     VISION_LLM_PROVIDER: str = os.getenv("VISION_LLM_PROVIDER", "openai")
-    VISION_LLM_MODEL: str = os.getenv("VISION_LLM_MODEL", "gpt-4o")
+    VISION_LLM_MODEL: str = os.getenv("VISION_LLM_MODEL", "gpt-4o-mini")
     OPENAI_API_KEY: str | None = os.getenv("OPENAI_API_KEY")
     MISTRAL_API_KEY: str | None = os.getenv("MISTRAL_API_KEY")
 
@@ -60,6 +64,10 @@ class Settings(BaseSettings):
             raise ValueError("OPENAI_API_KEY is required when DEFAULT_LLM_PROVIDER is openai")
         if self.DEFAULT_LLM_PROVIDER == "mistral" and not self.MISTRAL_API_KEY:
             raise ValueError("MISTRAL_API_KEY is required when DEFAULT_LLM_PROVIDER is mistral")
+        if self.LAYER1_LLM_PROVIDER == "openai" and not self.OPENAI_API_KEY:
+            raise ValueError("OPENAI_API_KEY is required when LAYER1_LLM_PROVIDER is openai")
+        if self.LAYER1_LLM_PROVIDER == "mistral" and not self.MISTRAL_API_KEY:
+            raise ValueError("MISTRAL_API_KEY is required when LAYER1_LLM_PROVIDER is mistral")
         if self.VISION_LLM_PROVIDER == "openai" and not self.OPENAI_API_KEY:
             raise ValueError("OPENAI_API_KEY is required when VISION_LLM_PROVIDER is openai")
         if self.VISION_LLM_PROVIDER == "mistral" and not self.MISTRAL_API_KEY:

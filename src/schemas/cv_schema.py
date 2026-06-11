@@ -159,27 +159,7 @@ class CVParsedFinal(BaseModel):
     recommandations_agentiques: RecommandationsAgentiques
 
 
-# --- Modèles d'Extractions Intermédiaires (Couche 1) ---
-
-class ExtractIdentiteSkills(BaseModel):
-    first_name: str = Field(description="Prénom uniquement. RECHERCHE DANS TOUT LE DOCUMENT, y compris les bordures et l'en-tête, même si le format est éclaté.")
-    poste_vise_header: Optional[str] = Field(None, description="Titre du poste visé extrait de l'en-tête. RECHERCHE DANS TOUT LE DOCUMENT.")
-    poste_vise_confidence: float = Field(0.0, description="Niveau de confiance de 0.0 à 1.0 pour le poste visé.")
-    introduction: Optional[str] = Field(None, description="Paragraphe d'introduction ou résumé du candidat.")
-    liens_externes: List[LienExterne] = Field(default_factory=list, description="Liens vers GitHub, LinkedIn, Portfolio... Extraire chaque lien individuellement. Ne jamais fusionner plusieurs liens dans une seule string.")
-    grammaire_orthographe: Optional[GrammaireOrthographe] = None
-    skills: Skills = Field(description="Extraire de manière exhaustive TOUTES les compétences (hard et softs) mentionnées dans le CV avec leur contexte.")
-
-class ExtractExperiences(BaseModel):
-    experiences: List[Experience] = Field(default_factory=list, description="Liste exhaustive des expériences professionnelles.")
-
-class ExtractProjets(BaseModel):
-    projets: Optional[List[ProjetBrut]] = Field(default=None, description="Liste exhaustive des projets personnels ou académiques.")
-
-class ExtractFormationsLangues(BaseModel):
-    formations: List[Formation] = Field(default_factory=list, description="Liste exhaustive des formations et diplômes.")
-    langues: List[Langue] = Field(default_factory=list, description="Liste exhaustive des langues parlées.")
-    certifications: List[Certification] = Field(default_factory=list, description="Liste exhaustive des certifications.")
+# --- Modèles d'Extraction (Couche 1) ---
 
 class ExtractHeaderVision(BaseModel):
     first_name: str = Field(description="Prénom uniquement.")
@@ -189,20 +169,21 @@ class ExtractHeaderVision(BaseModel):
 
 class CVExtractionBrute(BaseModel):
     """
-    Modèle recomposé à partir des extractions parallèles de la Couche 1.
+    Modèle d'extraction unique de la Couche 1 : le CV complet est extrait
+    en un seul appel LLM (au lieu de 4) pour ne payer le texte qu'une fois.
     """
-    first_name: str
-    poste_vise_header: Optional[str] = None
-    poste_vise_confidence: float = 0.0
-    introduction: Optional[str] = None
-    liens_externes: List[LienExterne] = Field(default_factory=list)
+    first_name: str = Field(description="Prénom uniquement. RECHERCHE DANS TOUT LE DOCUMENT, y compris les bordures et l'en-tête, même si le format est éclaté.")
+    poste_vise_header: Optional[str] = Field(None, description="Titre du poste visé extrait de l'en-tête. RECHERCHE DANS TOUT LE DOCUMENT.")
+    poste_vise_confidence: float = Field(0.0, description="Niveau de confiance de 0.0 à 1.0 pour le poste visé.")
+    introduction: Optional[str] = Field(None, description="Paragraphe d'introduction ou résumé du candidat.")
+    liens_externes: List[LienExterne] = Field(default_factory=list, description="Liens vers GitHub, LinkedIn, Portfolio... Extraire chaque lien individuellement. Ne jamais fusionner plusieurs liens dans une seule string.")
     grammaire_orthographe: Optional[GrammaireOrthographe] = None
-    skills: Skills
-    experiences: List[Experience] = Field(default_factory=list)
-    projets: Optional[List[ProjetBrut]] = Field(default=None)
-    formations: List[Formation] = Field(default_factory=list)
-    langues: List[Langue] = Field(default_factory=list)
-    certifications: List[Certification] = Field(default_factory=list)
+    skills: Skills = Field(description="Extraire de manière exhaustive TOUTES les compétences (hard et softs) mentionnées dans le CV avec leur contexte.")
+    experiences: List[Experience] = Field(default_factory=list, description="Liste exhaustive des expériences professionnelles.")
+    projets: Optional[List[ProjetBrut]] = Field(default=None, description="Liste exhaustive des projets personnels ou académiques.")
+    formations: List[Formation] = Field(default_factory=list, description="Liste exhaustive des formations et diplômes.")
+    langues: List[Langue] = Field(default_factory=list, description="Liste exhaustive des langues parlées.")
+    certifications: List[Certification] = Field(default_factory=list, description="Liste exhaustive des certifications.")
 
 
 # --- Modèles de Sortie Pydantic (Couche 3 CrewAI) ---

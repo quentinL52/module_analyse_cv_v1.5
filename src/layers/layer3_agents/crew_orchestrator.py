@@ -1,15 +1,19 @@
 import os
+import json
 import yaml
 import asyncio
 import logging
 import litellm
 from crewai import Agent, Task, Crew, Process, LLM
 from src.core.config import settings
+from src.core.token_tracker import litellm_success_callback
 
 # Configuration anti-Rate Limit pour Mistral
 litellm.num_retries = 4
 litellm.retry_policy = "exponential_backoff"
 litellm.suppress_logs = True
+# Comptage des tokens de chaque appel LiteLLM (agents CrewAI inclus)
+litellm.success_callback = [litellm_success_callback]
 
 from src.schemas.cv_schema import (
     OutputAuditeurProjets,
@@ -44,6 +48,59 @@ def get_crewai_llm():
         raise ValueError(f"Provider LLM non supporté par CrewAI : {provider}")
 
 api_semaphore = asyncio.Semaphore(4)
+
+
+def _compact_json(data) -> str:
+    """Sérialisation compacte pour les prompts (pas de repr() Python, pas de champs vides)."""
+    return json.dumps(data, ensure_ascii=False, default=str)
+
+
+def _slim(d: dict, keys: tuple) -> dict:
+    """Ne conserve que les clés utiles et non vides d'un dict."""
+    return {k: d[k] for k in keys if d.get(k) not in (None, [], "")}
+
+
+# --- Payloads ciblés par agent : chaque agent ne reçoit que les données dont sa
+# tâche a besoin, au lieu du CV complet (principal poste de coût de la Couche 3). ---
+
+def _payload_auditeur(cv: dict) -> dict:
+    return {
+        "poste_vise_header": cv.get("poste_vise_header"),
+        "projets": cv.get("projets") or [],
+    }
+
+
+def _payload_profileur(cv: dict) -> dict:
+    return {
+        "formations": cv.get("formations", []),
+        "experiences": [
+            _slim(e, ("poste", "entreprise", "start_date", "end_date", "type", "statut_temporel"))
+            for e in cv.get("experiences", [])
+        ],
+        "soft_skills": (cv.get("skills") or {}).get("soft_skills", []),
+    }
+
+
+def _payload_ats(cv: dict) -> dict:
+    return {
+        "poste_vise_header": cv.get("poste_vise_header"),
+        "skills": cv.get("skills"),
+        "experiences": [
+            _slim(e, ("poste", "type", "start_date", "end_date", "metriques_identifiees"))
+            for e in cv.get("experiences", [])
+        ],
+        "projets": [_slim(p, ("title", "technologies")) for p in (cv.get("projets") or [])],
+        "formations": [_slim(f, ("titre_diplome", "etablissement")) for f in cv.get("formations", [])],
+    }
+
+
+def _payload_stratege(cv: dict) -> dict:
+    # La synthèse reçoit déjà les rapports des autres agents via `context=` :
+    # on n'y rajoute que le minimum factuel (poste visé + statuts temporels).
+    return {
+        "poste_vise_header": cv.get("poste_vise_header"),
+        "experiences": [_slim(e, ("poste", "statut_temporel")) for e in cv.get("experiences", [])],
+    }
 
 async def _execute_task_safely(task: Task):
     """Exécute une tâche CrewAI dans un thread pour ne pas bloquer l'Event Loop, 
@@ -84,11 +141,13 @@ class CVCrewOrchestrator:
 
     def create_tasks(self, agents: dict, json_cv: dict, offre_emploi_texte: str = None) -> list:
         tasks = []
-        cv_context = f"Voici les données extraites du CV :\n{json_cv}"
+
+        def cv_context(payload: dict) -> str:
+            return f"Voici les données extraites du CV :\n{_compact_json(payload)}"
 
         # Tâches asynchrones
         self.task_audit_projets = Task(
-            description=self.tasks_config['audit_projets']['description'] + "\n" + cv_context,
+            description=self.tasks_config['audit_projets']['description'] + "\n" + cv_context(_payload_auditeur(json_cv)),
             expected_output=self.tasks_config['audit_projets']['expected_output'],
             agent=agents['auditeur'],
 
@@ -98,7 +157,7 @@ class CVCrewOrchestrator:
 
 
         self.task_parcours = Task(
-            description=self.tasks_config['analyse_parcours']['description'] + "\n" + cv_context,
+            description=self.tasks_config['analyse_parcours']['description'] + "\n" + cv_context(_payload_profileur(json_cv)),
             expected_output=self.tasks_config['analyse_parcours']['expected_output'],
             agent=agents['profileur'],
 
@@ -106,8 +165,9 @@ class CVCrewOrchestrator:
         )
         tasks.append(self.task_parcours)
 
+        # Roni évalue le CV dans sa globalité : il reçoit le CV complet (épuré des champs vides)
         self.task_roni = Task(
-            description=self.tasks_config['critique_globale']['description'] + "\n" + cv_context,
+            description=self.tasks_config['critique_globale']['description'] + "\n" + cv_context(json_cv),
             expected_output=self.tasks_config['critique_globale']['expected_output'],
             agent=agents['roni'],
 
@@ -120,10 +180,10 @@ class CVCrewOrchestrator:
         if offre_emploi_texte:
             desc = self.tasks_config['matching_offre']['description'].replace('{offre_emploi_texte}', offre_emploi_texte)
             self.task_ats = Task(
-                description=desc + "\n" + cv_context,
+                description=desc + "\n" + cv_context(_payload_ats(json_cv)),
                 expected_output=self.tasks_config['matching_offre']['expected_output'],
                 agent=agents['ats_matcher'],
-    
+
                 output_pydantic=AnalyseMatchingOffre
             )
             tasks.append(self.task_ats)
@@ -134,7 +194,7 @@ class CVCrewOrchestrator:
             context_tasks.append(self.task_ats)
 
         self.task_synthese = Task(
-            description=self.tasks_config['synthese_finale']['description'] + "\n" + cv_context,
+            description=self.tasks_config['synthese_finale']['description'] + "\n" + cv_context(_payload_stratege(json_cv)),
             expected_output=self.tasks_config['synthese_finale']['expected_output'],
             agent=agents['stratege'],
             context=context_tasks,
@@ -175,9 +235,7 @@ class CVCrewOrchestrator:
         }
         if self.task_ats:
             outputs["ats"] = self.task_ats.output.pydantic
-            
-        outputs["tokens"] = {"prompt": 0, "completion": 0}
-            
+
         return outputs
 
 async def run_agentic_eval_async(json_cv: dict, offre_emploi_texte: str = None) -> dict:
