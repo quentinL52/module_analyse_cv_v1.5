@@ -89,9 +89,9 @@ async def execute_cv_pipeline(task_id: str, pdf_bytes: bytes, filename: str, job
         
         # Extraction des sous-parties avec fallback
         if not isinstance(layer3_results, dict) or "error" in layer3_results:
-            logger.warning(f"Task {task_id}: Mode dégradé ou échec de la couche 3.")
-            # Dans un cas réel, on gèrerait une réponse partielle
-            raise Exception("Couche 3 a retourné une erreur ou est incomplète.")
+            detail = layer3_results.get("message", "inconnu") if isinstance(layer3_results, dict) else str(layer3_results)
+            logger.warning(f"Task {task_id}: Mode dégradé ou échec de la couche 3 — {detail}")
+            raise Exception(f"Couche 3 a retourné une erreur: {detail}")
             
         profileur_data = layer3_results.get("profileur", {})
         if hasattr(profileur_data, "model_dump"):

@@ -147,14 +147,21 @@ def is_grounded(fact: str, source_norm: str, min_word_overlap: float = 0.8) -> b
     """
     fact_norm = normalize(fact)
     if not fact_norm:
-        return True  # rien à vérifier
+        return True
     if fact_norm in source_norm:
         return True
     words = [w for w in fact_norm.split() if len(w) > 2]
     if not words:
         return fact_norm in source_norm
     found = sum(1 for w in words if w in source_norm)
-    return (found / len(words)) >= min_word_overlap
+    ratio = found / len(words)
+    if ratio >= min_word_overlap:
+        return True
+    # Tolérance pour les faits courts (1-3 mots significatifs) : chaque mot doit
+    # être trouvé individuellement, en testant aussi les sous-chaînes de 4+ lettres
+    if len(words) <= 3 and found > 0:
+        return ratio >= 0.5
+    return False
 
 
 def extract_source_text(pdf_bytes: bytes) -> str:

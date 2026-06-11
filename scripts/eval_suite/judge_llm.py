@@ -13,7 +13,7 @@ import json
 import asyncio
 import logging
 from typing import List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from src.core.llm_factory import get_instructor_client, get_default_model_name
 from src.core.token_tracker import token_counter, track_completion_usage
@@ -39,6 +39,11 @@ class HallucinationItem(BaseModel):
     champ: str = Field(description="Champ du JSON concerné (ex: experiences[0].entreprise)")
     valeur_json: str = Field(description="Valeur présente dans le JSON")
     justification: str = Field(description="Pourquoi cette valeur est introuvable ou contredite par le texte brut")
+
+    @field_validator("valeur_json", mode="before")
+    @classmethod
+    def coerce_to_str(cls, v):
+        return str(v) if not isinstance(v, str) else v
 
 
 class SectionScore(BaseModel):

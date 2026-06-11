@@ -14,7 +14,7 @@ from difflib import SequenceMatcher
 
 from scripts.eval_suite.common import normalize
 
-GROUND_TRUTH_DIR = os.path.join(os.path.dirname(__file__), "ground_truth")
+GROUND_TRUTH_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), "ground_truth")
 F1_THRESHOLD = 0.85
 FUZZY_RATIO = 0.80
 
@@ -44,9 +44,10 @@ def _prf(extracted: list[str], expected: list[str]) -> dict:
     }
 
 
-def load_ground_truth(filename: str) -> dict | None:
+def load_ground_truth(filename: str, gt_dir: str = None) -> dict | None:
     base = os.path.splitext(os.path.basename(filename))[0]
-    path = os.path.join(GROUND_TRUTH_DIR, f"{base}.json")
+    search_dir = gt_dir or GROUND_TRUTH_DIR
+    path = os.path.join(search_dir, f"{base}.json")
     if not os.path.exists(path):
         return None
     with open(path, "r", encoding="utf-8") as f:

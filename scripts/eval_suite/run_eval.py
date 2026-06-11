@@ -48,7 +48,7 @@ GATES = {
 }
 
 
-async def evaluate_one_cv(filepath: str, job_description: str, with_judge: bool) -> dict:
+async def evaluate_one_cv(filepath: str, job_description: str, with_judge: bool, gt_dir: str = None) -> dict:
     filename = os.path.basename(filepath)
     with open(filepath, "rb") as f:
         pdf_bytes = f.read()
@@ -69,7 +69,7 @@ async def evaluate_one_cv(filepath: str, job_description: str, with_judge: bool)
     report["grounding"] = check_grounding(result.get("candidat", {}), source_text)
 
     # 2. Précision vs vérité terrain (si disponible)
-    gt = load_ground_truth(filename)
+    gt = load_ground_truth(filename, gt_dir=gt_dir)
     report["precision"] = check_precision(result.get("candidat", {}), gt) if gt else {"verdict": "SKIP", "raison": "pas de ground truth"}
 
     # 3. Adéquation produit (déterministe)
@@ -217,6 +217,7 @@ async def main():
     parser.add_argument("--stability-runs", type=int, default=3)
     parser.add_argument("--stability-cvs", type=int, default=2)
     parser.add_argument("--robustness", action="store_true")
+    parser.add_argument("--ground-truth-dir", default=None, help="Dossier des annotations JSON (défaut: scripts/eval_suite/ground_truth/)")
     args = parser.parse_args()
 
     if not os.path.isdir(args.cv_dir):
@@ -245,7 +246,7 @@ async def main():
         logger.info(f"--- CV {idx}/{len(cv_files)} : {filename} ---")
         try:
             report["evaluations"].append(
-                await evaluate_one_cv(os.path.join(args.cv_dir, filename), args.job_description, not args.no_judge)
+                await evaluate_one_cv(os.path.join(args.cv_dir, filename), args.job_description, not args.no_judge, gt_dir=args.ground_truth_dir)
             )
         except Exception as e:
             logger.error(f"Évaluation en échec pour {filename} : {e}")
