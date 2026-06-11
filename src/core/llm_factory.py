@@ -9,22 +9,27 @@ litellm.num_retries = 4
 litellm.retry_policy = "exponential_backoff"
 litellm.suppress_logs = True
 
+
+def _build_instructor_client(provider: str):
+    """Construit un client Instructor pour le provider demandé."""
+    provider = provider.lower()
+
+    if provider == "openai":
+        return instructor.from_openai(OpenAI(api_key=settings.OPENAI_API_KEY))
+
+    elif provider == "mistral":
+        return instructor.from_mistral(Mistral(api_key=settings.MISTRAL_API_KEY))
+
+    else:
+        raise ValueError(f"Fournisseur LLM non supporté : {provider}")
+
+
 def get_instructor_client():
     """
     Retourne un client Instructor correctement patché selon le fournisseur LLM défini dans la configuration.
     """
-    provider = settings.DEFAULT_LLM_PROVIDER.lower()
-    
-    if provider == "openai":
-        client = OpenAI(api_key=settings.OPENAI_API_KEY)
-        return instructor.from_openai(client)
-        
-    elif provider == "mistral":
-        client = Mistral(api_key=settings.MISTRAL_API_KEY)
-        return instructor.from_mistral(client)
-        
-    else:
-        raise ValueError(f"Fournisseur LLM non supporté : {provider}")
+    return _build_instructor_client(settings.DEFAULT_LLM_PROVIDER)
+
 
 def get_default_model_name() -> str:
     """
@@ -32,20 +37,17 @@ def get_default_model_name() -> str:
     """
     return settings.DEFAULT_LLM_MODEL
 
+
+def get_layer1_client_and_model():
+    """
+    Retourne un tuple (client, model_name) dédié à la Couche 1 (extraction structurée).
+    Permet d'utiliser un petit modèle économique, indépendant de celui des agents.
+    """
+    return _build_instructor_client(settings.LAYER1_LLM_PROVIDER), settings.LAYER1_LLM_MODEL
+
+
 def get_vision_client_and_model():
     """
     Retourne un tuple (client, model_name) pour le provider Vision configuré.
     """
-    provider = settings.VISION_LLM_PROVIDER.lower()
-    
-    if provider == "openai":
-        client = OpenAI(api_key=settings.OPENAI_API_KEY)
-        return instructor.from_openai(client), settings.VISION_LLM_MODEL
-        
-    elif provider == "mistral":
-        client = Mistral(api_key=settings.MISTRAL_API_KEY)
-        return instructor.from_mistral(client), settings.VISION_LLM_MODEL
-        
-    else:
-        raise ValueError(f"Fournisseur Vision LLM non supporté : {provider}")
-
+    return _build_instructor_client(settings.VISION_LLM_PROVIDER), settings.VISION_LLM_MODEL

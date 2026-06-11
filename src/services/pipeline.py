@@ -10,6 +10,8 @@ from src.schemas.cv_schema import CVParsedFinal, Candidat, RecommandationsAgenti
 from src.services.scoring_cv import compute_multidimensional_score
 from src.core.db import CVMetrics
 from src.core.llm_factory import get_default_model_name
+from src.core.config import settings
+from src.core.token_tracker import token_counter
 import time
 from datetime import datetime
 import re
@@ -50,7 +52,8 @@ def annotate_temporal_status(experiences, today):
 async def execute_cv_pipeline(task_id: str, pdf_bytes: bytes, filename: str, job_description: str, db):
     try:
         TASKS_STORE[task_id] = {"status": "PROCESSING"}
-        
+        tokens_start_prompt, tokens_start_completion, _ = token_counter.snapshot()
+
         # Phase 1: Ingestion
         logger.info(f"Task {task_id}: Extraction de texte depuis le PDF.")
         t0 = time.time()
@@ -77,7 +80,8 @@ async def execute_cv_pipeline(task_id: str, pdf_bytes: bytes, filename: str, job
         # Couche 3: Évaluation Agentique
         logger.info(f"Task {task_id}: Lancement de la Couche 3 (Agents).")
         t0 = time.time()
-        layer3_results = await run_agentic_eval_async(brute_data.model_dump(), job_description)
+        # exclude_none : ne pas payer les champs vides (transferable, evaluation_roni...) dans les prompts agents
+        layer3_results = await run_agentic_eval_async(brute_data.model_dump(exclude_none=True), job_description)
         t_agents = time.time() - t0
         
         # Mapping Final
@@ -183,13 +187,17 @@ async def execute_cv_pipeline(task_id: str, pdf_bytes: bytes, filename: str, job
             recommandations_agentiques=recos
         )
         
+        tokens_end_prompt, tokens_end_completion, _ = token_counter.snapshot()
+
         metrics = CVMetrics(
             filename=filename,
-            model_used=f"{get_default_model_name()}+crewai",
+            model_used=f"{settings.LAYER1_LLM_MODEL}+{get_default_model_name()}+crewai",
             duree_etape_1_ocr=t_ocr,
             duree_etape_2_extraction=t_extraction,
             duree_etape_4_agents=t_agents,
             duree_totale=t_ocr + t_extraction + t_agents,
+            tokens_prompt=tokens_end_prompt - tokens_start_prompt,
+            tokens_completion=tokens_end_completion - tokens_start_completion,
             fallback_ocr_triggered=is_ocr,
             statut_final="COMPLETED"
         )

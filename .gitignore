@@ -19,6 +19,15 @@ __pycache__/
 .coverage
 htmlcov/
 
+# Suite d'évaluation : artefacts générés (textes extraits, rapports)
+scripts/eval_suite/ground_truth/_textes/
+scripts/eval_suite/reports/
+
+# RGPD : CV réels et annotations nominatives — JAMAIS versionnés (repo public).
+# Le golden set reste local ; seul le README documentant le format est versionné.
+scripts/eval_suite/ground_truth/*
+!scripts/eval_suite/ground_truth/README.md
+
 # IDE
 .vscode/
 .idea/
